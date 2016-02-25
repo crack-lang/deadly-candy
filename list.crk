@@ -1,0 +1,31 @@
+#!/usr/local/bin/crack
+
+import crack.cmdline CmdOptions, Option, CMD_STR;
+import crack.exp.termui TermApp;
+import crack.io cerr, cin;
+import crack.io.readers LineReader;
+import crack.strutil StringArray;
+import termlist List;
+
+CmdOptions opts = [
+    Option('tty', 't', 'TTY device to use', '', CMD_STR)
+];
+
+opts.parse();
+
+if (tty := opts.getString('tty')) {
+
+    StringArray lines = {};
+    for (line :in LineReader(cin))
+        lines.append(line);
+
+    app := TermApp(tty);
+    app.start();
+    app.showCursor(false);
+    table := List(app, lines);
+    app.run();
+    app.showCursor(true);
+    app.stop();
+} else {
+    cerr `You must specify a tty: -t <tty-dev>`;
+}

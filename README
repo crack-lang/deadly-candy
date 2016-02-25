@@ -1,0 +1,5 @@
+"Deadly Candy" - aka "Terminal Crack"
+
+This might end up to be a shell that ties together terminal interfaces using
+crash and termui and a bunch of general purpose widgets.  Kind of like Tcl/Tk
+for terminals extensible in crack.

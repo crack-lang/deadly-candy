@@ -1,0 +1,97 @@
+#!/usr/local/bin/crack
+
+import crack.cont.hashmap HashMap;
+import crack.functor Function2;
+import crack.io cout, cerr;
+import crack.sys argv, env, exit;
+import crack.exp.termui Event, KEY_ENTER;
+import crack.process Process, CRK_PIPE_STDOUT;
+import crack.strutil split, StringArray;
+import termlist EventCallback, List;
+import crack.exp.termui TermApp;
+
+String getDefaultWindowTitle() {
+    return env.get('WINDOW_TITLE', 'Terminal!');
+}
+
+String getSessionName(String statusLine) {
+    sep := statusLine.lfind(b':');
+    return statusLine.substr(0, sep);
+}
+
+## RAII object to manage the window name.
+class RenameWindow {
+    oper init(String name) {
+        cout `\033]0;$name\007`;
+    }
+
+    oper del() {
+        cout `\033]0;$(getDefaultWindowTitle())\007`;
+    }
+}
+
+
+int attachSession(String name) {
+    RenameWindow rw = {name};
+    return Process(StringArray!['tmux', 'attach-session', '-t', name]).run();
+}
+
+int newSession(String name) {
+    RenameWindow rw = {name};
+    return Process(StringArray!['tmux', 'new-session', '-s', name]).run();
+}
+
+bool selected(List list, Event event) {
+    line := list.model[list.selection];
+    attachSession(getSessionName(line));
+    list.getApp().terminate();
+    return true;
+}
+
+void runList(StringArray lines) {
+    app := TermApp();
+    app.start();
+    app.showCursor(false);
+    list := List(app, lines);
+    list.bind(KEY_ENTER, Function2[bool, List, Event](selected));
+    app.run();
+    app.showCursor(true);
+    app.stop();
+}
+
+StringArray listSessions() {
+    proc := Process(StringArray!['tmux', 'list-sessions'], CRK_PIPE_STDOUT);
+    result := split(proc.getStdOut(), b'\n');
+    if (!result[-1])
+        result.delete(-1);
+    return result;
+}
+
+if (argv.count() < 2) {
+    cerr `usage: tmx <command>\n`;
+    exit(1);
+}
+
+cmd := argv[1];
+if (cmd == 'ls') {
+    runList(listSessions());
+} else if (cmd == 'ses') {
+    # Switch to the named session or create a new one if it doesn't exist.
+    if (argv.count() != 3) {
+        cerr `usage: tmx ses <session-name>\n`;
+        exit(1);
+    }
+
+    session := argv[2];
+    sessions := listSessions();
+    for (s :in sessions) {
+        if (s && getSessionName(s) == session) {
+            attachSession(session);
+            exit(0);
+        }
+    }
+
+    newSession(session);
+} else {
+    cerr `unknown command: $(cmd)\n`;
+}
