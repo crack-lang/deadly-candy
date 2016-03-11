@@ -1,0 +1,43 @@
+#!/usr/local/bin/crack
+# Display events received.  Quit when we get a 'q'.
+
+import crack.io FStr;
+import crack.strutil StringArray;
+import crack.exp.termui Event, KeyEvent, TermApp, Window;
+
+class EventMonitor : Window {
+
+    StringArray events = {};
+
+    oper init(TermApp app) : Window(app) {}
+
+    bool onEvent(Event event) {
+        if (event := KeyEvent.cast(event, null)) {
+            if (event.key == b'q')
+                getApp().terminate();
+            else
+                events.append(FStr() I`key: $(event.key) text: \
+                                       $(event.data.getRepr())`);
+        }
+        return true;
+    }
+
+    void paint() {
+        gc := getGraphicsContext();
+        iter := events.iter();
+        if (events.count() > height)
+            iter.index = events.count() - height;
+        uint y;
+        gc.clear(0);
+        for (ev :in events)
+            gc.write(0, y++, 7, ev);
+    }
+}
+
+app := TermApp();
+app.start();
+app.showCursor(false);
+mon := EventMonitor(app);
+app.run();
+app.showCursor(true);
+app.stop();
