@@ -2,7 +2,7 @@
 import crack.cont.array Array;
 import crack.cont.hashmap HashMap;
 import crack.exp.termui Event, KeyEvent, TermApp, Window, KEY_ENTER, KEY_ESC,
-    KEY_DOWN, KEY_UP;
+    KEY_DOWN, KEY_PGDN, KEY_PGUP, KEY_UP;
 import crack.functor Functor2;
 
 class List;
@@ -51,8 +51,26 @@ class List : Window {
             } else if (event.key == KEY_DOWN &&
                        selection < model.count() - 1) {
                 ++selection;
-                if (selection - top > height)
+                if (selection - top >= height)
                     top = selection - height + 1;
+            } else if (event.key == KEY_PGUP) {
+                if (top < height) {
+                    # Go to the top, leave the selection the same.
+                    top = 0;
+                } else {
+                    # Go one page up, move selection one page up.
+                    top = top - height;
+                    if (selection >= height)
+                        selection -= height;
+                }
+            } else if (event.key == KEY_PGDN) {
+                if (top >= model.count() - height) {
+                    top = model.count() - height;
+                } else {
+                    top += height;
+                    if (selection < model.count() - height)
+                        selection += height;
+                }
             } else if (event.key == KEY_ESC) {
                 getApp().terminate();
             }
