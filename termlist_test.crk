@@ -1,0 +1,29 @@
+#!/usr/local/bin/crack
+
+import crack.io FStr;
+import crack.strutil StringArray;
+import crack.exp.termui TermApp;
+import termlist List;
+
+contents := StringArray![
+    'some interesting entry',
+    'an even more interesting entry',
+    'piles and piles of funky data',
+    'arthur',
+    'anteater',
+    'antithesis'
+];
+
+for (i := 0; i < 10; ++i)
+    contents.insert(0, FStr() `$i mississippi`);
+
+for (i := 0; i < 100; ++i)
+    contents.append(FStr() `$i bottles of beer on the wall`);
+
+app := TermApp();
+app.start();
+app.showCursor(false);
+table := List(app, contents);
+app.run();
+app.showCursor(true);
+app.stop();
