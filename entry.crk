@@ -1,0 +1,106 @@
+## Entryfield control.
+
+import crack.cont.hashmap HashMap;
+import crack.exp.termui Event, KeyEvent, TermApp, Window,
+    KEY_BACKSPACE, KEY_LEFT, KEY_RIGHT;
+import crack.functor Functor2;
+import crack.lang AppendBuffer, Buffer;
+
+class Entry;
+
+alias EventCallback = Functor2[bool, Entry, Event];
+
+@export_symbols EventCallback;
+
+## A one line entryfield.
+class Entry : Window {
+
+    AppendBuffer model;
+    byte normalAttr = 6,   # Cyan
+        cursorAttr = 0x46; # Cyan on blue.
+
+    ## Index of the first visible character.
+    uintz start;
+
+    ## Cursor position.
+    uintz pos;
+
+    HashMap[int, EventCallback] __bindings = {};
+
+    oper init(Window parent, AppendBuffer model) :
+        Window(parent),
+        model = model {
+    }
+
+    oper init(Window parent, String origValue) :
+        Window(parent),
+        model(origValue.size) {
+
+        model.extend(origValue);
+    }
+
+    void bind(int key, EventCallback action) {
+        __bindings[key] = action;
+    }
+
+    bool onEvent(Event event) {
+        if (event := KeyEvent.cast(event, null)) {
+            if (handler := __bindings.get(event.key)) {
+                return handler(this, event);
+            }
+
+            if (event.key == KEY_BACKSPACE || event.key == 127) {
+                if (!pos)
+                    return true;
+
+                model.move(pos - 1, pos, model.size - pos);
+                --model.size;
+                --pos;
+                return true;
+            }
+
+            if (event.key == KEY_LEFT) {
+                if (pos > 0)
+                    --pos;
+                if (pos < start)
+                    start = pos;
+                return true;
+            }
+
+            if (event.key == KEY_RIGHT) {
+                if (pos < model.size)
+                    ++pos;
+                if (pos - start > width)
+                    pos = start + width - 1;
+                return true;
+            }
+
+            # Otherwise just add the character.
+            if (pos < model.size) {
+                if (model.cap < model.size + 1)
+                    model.grow(model.cap * 2);
+                model.move(pos + 1, pos, model.size - pos);
+                model.buffer[pos] = byte(event.key);
+            } else {
+                model.append(byte(event.key));
+            }
+            ++pos;
+        }
+
+        return true;
+    }
+
+    void paint() {
+        gc := getGraphicsContext();
+        gc.fillRect(0, 0, width, height, normalAttr, b' ');
+        gc.write(0, 0, normalAttr,
+                 String(model, start, model.size - start)
+                 );
+
+        # Adjust the cursor.
+        if (pos == model.size)
+            gc.write(pos - start, 0, cursorAttr, ' ');
+        else
+            gc.write(pos - start, 0, cursorAttr, String(1, model.buffer[pos]));
+    }
+}
