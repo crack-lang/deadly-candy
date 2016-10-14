@@ -1,0 +1,126 @@
+## Layout controls.
+##
+## TermUI layouts are implemented as container windows that arrange controls
+## in specific ways.
+
+import crack.cont.array Array;
+import crack.io cerr;
+import crack.exp.termui Event, KeyEvent, TermApp, Window;
+
+const KEY_TAB := 9;
+
+## Used as 'size' for Container.addChild().  Indicates the child should expand
+## to fill as much space as possible.
+const EXPAND := -1;
+
+## Container arranges its children in a column.
+class Container : Window {
+    class __Cell {
+        Window win;
+        int size;
+        uint pos;
+
+        oper init(Window win, int size ) : win = win, size = size {}
+    }
+
+    Array[__Cell] __cells = {};
+
+    int __focus;
+
+    byte backgroundAttr = 7;  # Default background attribute.
+
+    oper init(Window parent) : Window(parent) {}
+    oper init(TermApp app) : Window(app) {}
+
+    void __recalculate() {
+        uint used, pos, expanderCount;
+
+        # Compute fixed size values.
+        for (cell :in __cells) {
+            if (cell.size == EXPAND) {
+                ++expanderCount;
+            } else {
+                used += cell.size;
+                cell.pos = pos;
+                pos += cell.size;
+            }
+        }
+
+        # Split the remaining space up among the expanders.
+        if (expanderCount) {
+            int size = 1, remainder;
+            if (used < height) {
+                # Compute the size for each expander.
+                size = (used - height) / expanderCount;
+                if (size)
+                    # Keep track of the remainder, we'll give it to the first
+                    # expander.
+                    remainder = (used - height) % expanderCount;
+                else
+                    # Make sure we got a size of at least 1.
+                    size = 1;
+            }
+
+            uint nextPos;
+            for (cell :in __cells) {
+                if (cell.size == EXPAND) {
+                    cell.pos = nextPos;
+                    nextPos += size + remainder;
+                    remainder = 0;
+                } else {
+                    nextPos += cell.size;
+                }
+            }
+        }
+
+        # Reposition all of the windows.
+        numCells := __cells.count();
+        for (int i = 0; i < numCells; ++i) {
+            cell := __cells[i];
+            cell.win.x = 0;
+            cell.win.y = cell.pos;
+            cell.win.width = width;
+            cell.win.height =
+                ((i < numCells - 1) ? __cells[i + 1].pos : height) - cell.pos;
+        }
+    }
+
+    ## Adds a child to the container.  'size' is the size (in characters,
+    ## width or height, depending on whether this is a row or a column).  A
+    ## size of EXPAND causes the control to expand to fill as much space as
+    ## possible.
+    void addChild(Window win, int size) {
+        __cells.append(__Cell(win, size));
+        __recalculate();
+    }
+
+    void onResize(uint width, uint height) {
+        Window.onResize(width, height);
+        __recalculate();
+    }
+
+    bool onEvent(Event event) {
+        if (event := KeyEvent.cast(event, null)) {
+
+            # Handle a tab.
+            if (event.key == KEY_TAB) {
+                ++__focus;
+                if (__focus >= __cells.count())
+                    __focus = 0;
+                return true;
+            }
+
+            # Hand it off to the focused child.
+            return __cells[__focus].win.onEvent(event);
+        }
+        return false;
+    }
+
+    void paint() {
+        gc := getGraphicsContext();
+        gc.fillRect(0, 0, width, height, backgroundAttr, b' ');
+
+        for (cell :in __cells)
+            cell.win.paint();
+    }
+}
