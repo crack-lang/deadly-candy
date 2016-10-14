@@ -1,10 +1,11 @@
 ## Entryfield control.
 
 import crack.cont.hashmap HashMap;
-import crack.exp.termui Event, KeyEvent, TermApp, Window,
-    KEY_BACKSPACE, KEY_LEFT, KEY_RIGHT;
+import crack.exp.termui Event, KeyEvent, TermApp, KEY_BACKSPACE, KEY_LEFT,
+    KEY_RIGHT;
 import crack.functor Functor2;
 import crack.lang AppendBuffer, Buffer;
+import termui_fix Window;
 
 class Entry;
 
@@ -98,9 +99,13 @@ class Entry : Window {
                  );
 
         # Adjust the cursor.
-        if (pos == model.size)
-            gc.write(pos - start, 0, cursorAttr, ' ');
-        else
-            gc.write(pos - start, 0, cursorAttr, String(1, model.buffer[pos]));
+        if (getFocus()) {
+            if (pos == model.size)
+                gc.write(pos - start, 0, cursorAttr, ' ');
+            else
+                gc.write(pos - start, 0, cursorAttr,
+                         String(1, model.buffer[pos])
+                         );
+        }
     }
 }

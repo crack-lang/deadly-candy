@@ -1,9 +1,10 @@
 
 import crack.cont.array Array;
 import crack.cont.hashmap HashMap;
-import crack.exp.termui Event, KeyEvent, TermApp, Window, KEY_ENTER, KEY_ESC,
+import crack.exp.termui Event, KeyEvent, TermApp, KEY_ENTER, KEY_ESC,
     KEY_DOWN, KEY_PGDN, KEY_PGUP, KEY_UP;
 import crack.functor Functor2;
+import termui_fix Window;
 
 class List;
 alias EventCallback = Functor2[bool, List, Event];
@@ -87,8 +88,9 @@ class List : Window {
         gc.fillRect(0, 0, x, y, 0, b' ');
         cur := model.iter();
         cur.index = top;
+        focused := getFocus();
         for (int y = 0; cur && y - top < height; ++y) {
-            if (y + top == selection)
+            if (focused && y + top == selection)
                 gc.write(0, y, selectionAttr, cur.elem());
             else
                 gc.write(0, y, normalAttr, cur.elem());

@@ -5,7 +5,8 @@
 
 import crack.cont.array Array;
 import crack.io cerr;
-import crack.exp.termui Event, KeyEvent, TermApp, Window;
+import crack.exp.termui Event, KeyEvent, TermApp;
+import termui_fix Window;
 
 const KEY_TAB := 9;
 
@@ -90,6 +91,8 @@ class Container : Window {
     ## size of EXPAND causes the control to expand to fill as much space as
     ## possible.
     void addChild(Window win, int size) {
+        if (!__cells && getFocus())
+            win.setFocus(true);
         __cells.append(__Cell(win, size));
         __recalculate();
     }
@@ -104,9 +107,11 @@ class Container : Window {
 
             # Handle a tab.
             if (event.key == KEY_TAB) {
+                if (__cells) __cells[__focus].win.setFocus(false);
                 ++__focus;
                 if (__focus >= __cells.count())
                     __focus = 0;
+                __cells[__focus].win.setFocus(true);
                 return true;
             }
 
@@ -122,5 +127,11 @@ class Container : Window {
 
         for (cell :in __cells)
             cell.win.paint();
+    }
+
+    void setFocus(bool focused) {
+        Window.setFocus(focused);
+        if (__cells)
+            __cells[__focus].win.setFocus(focused);
     }
 }

@@ -1,0 +1,22 @@
+
+import crack.exp.termui TermApp, UIWindow = Window;
+
+## This functionality should be added to termui's Window.
+class Window : UIWindow {
+
+    bool __focus;
+
+    ## Indicate to the window that it has the focus or not depending on the
+    ## value of 'focused'.
+    void setFocus(bool focused) {
+        __focus = focused;
+    }
+
+    ## Returns true if the window has the focus.
+    @final bool getFocus() {
+        return __focus;
+    }
+
+    oper init(Window parent) : UIWindow(parent) {}
+    oper init(TermApp app) : UIWindow(app) {}
+}
