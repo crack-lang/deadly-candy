@@ -32,7 +32,11 @@ class List : Window {
         width = size.x;
         height = size.y;
     }
-#    oper init(Window parent) : Window(parent) {}
+
+    oper init(Window parent, Array[String] model) :
+        Window(parent),
+        model = model {
+    }
 
     void bind(int key, EventCallback action) {
         __bindings[key] = action;
@@ -80,7 +84,7 @@ class List : Window {
 
     void paint() {
         gc := getGraphicsContext();
-        gc.fillRect(0, 0, 80, 25, 0, b' ');
+        gc.fillRect(0, 0, x, y, 0, b' ');
         cur := model.iter();
         cur.index = top;
         for (int y = 0; cur && y - top < height; ++y) {
