@@ -41,6 +41,11 @@ int newSession(String name) {
     return Process(StringArray!['tmux', 'new-session', '-s', name]).run();
 }
 
+int detachSession(String name, String command) {
+    StringArray cmd = ['tmux', 'new-session', '-ds', name, command];
+    return Process(cmd).run();
+}
+
 bool selected(List list, Event event) {
     line := list.model[list.selection];
     attachSession(getSessionName(line));
@@ -92,6 +97,24 @@ if (cmd == 'ls') {
     }
 
     newSession(session);
+} else if (cmd == 'bg') {
+    if (argv.count() != 4) {
+        cerr `usage tmx bg <name> <command>`;
+        exit(1);
+    }
+
+    session := argv[2];
+    cmd := argv[3];
+
+    sessions := listSessions();
+    for (s :in sessions) {
+        if (s && getSessionName(s) == session) {
+            cerr `Session $session already exists\n`;
+            exit(1);
+        }
+    }
+
+    detachSession(session, cmd);
 } else {
     cerr `unknown command: $(cmd)\n`;
 }
