@@ -1,11 +1,10 @@
 ## Entryfield control.
 
 import crack.cont.hashmap HashMap;
-import crack.exp.termui Event, KeyEvent, TermApp, KEY_BACKSPACE, KEY_LEFT,
-    KEY_RIGHT;
+import crack.exp.termui Event, KeyEvent, TermApp, Window, KEY_BACKSPACE,
+    KEY_LEFT, KEY_RIGHT;
 import crack.functor Functor1, Functor2;
 import crack.lang AppendBuffer, Buffer;
-import termui_fix Window;
 
 class Entry;
 

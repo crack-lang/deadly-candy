@@ -5,8 +5,7 @@
 
 import crack.cont.array Array;
 import crack.io cerr;
-import crack.exp.termui Event, KeyEvent, TermApp;
-import termui_fix Window;
+import crack.exp.termui Event, KeyEvent, TermApp, Window;
 
 const KEY_TAB := 9;
 
