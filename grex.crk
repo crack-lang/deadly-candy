@@ -13,7 +13,7 @@ import crack.process Process, ProcessHandlerImpl, CRK_PIPE_STDERR,
 import crack.sys argv;
 
 import entry Entry;
-import layout Container, EXPAND;
+import layout Column, EXPAND;
 import termlist List;
 
 class CmdProcHandler : ProcessHandlerImpl {
@@ -44,7 +44,7 @@ class Cmd : StringArray {
 app := TermApp();
 app.start();
 
-grid := Container(app);
+grid := Column(app);
 
 Array[String] lines = {};
 list := List(grid, lines);

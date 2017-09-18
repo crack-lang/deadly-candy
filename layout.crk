@@ -5,6 +5,7 @@
 
 import crack.cont.array Array;
 import crack.io cerr;
+import crack.lang InvalidArgumentError;
 import crack.exp.termui Event, KeyEvent, TermApp, Window;
 
 const KEY_TAB := 9;
@@ -13,90 +14,88 @@ const KEY_TAB := 9;
 ## to fill as much space as possible.
 const EXPAND := -1;
 
-## Container arranges its children in a column.
-class Container : Window {
-    class __Cell {
-        Window win;
-        int size;
-        uint pos;
+class _Cell {
+    Window win;
+    int size;
+    uint pos;
 
-        oper init(Window win, int size ) : win = win, size = size {}
+    oper init(Window win, int size ) : win = win, size = size {}
+}
+
+
+## Recalculates the position and size of all cells in the array so that 'size'
+## is respected for all of them and cells whose size is "EXPAND" are expanded
+## to evenly consume the remainder of all space.
+void _recalculate(Array[_Cell] cells, int max) {
+    uint used, pos, expanderCount;
+
+    # Compute fixed size values.
+    for (cell :in cells) {
+        if (cell.size == EXPAND)
+            ++expanderCount;
+        else
+            used += cell.size;
     }
 
-    Array[__Cell] __cells = {};
+    # Split the remaining space up among the expanders.
+    int expanderSize = 1, remainder;
+    if (expanderCount) {
+        if (used < max) {
+            # Compute the size for each expander.
+            expanderSize = (max - used) / expanderCount;
+            if (expanderSize)
+                # Keep track of the remainder, we'll give it to the first
+                # expander.
+                remainder = (max - used) % expanderCount;
+            else
+                # Make sure we got a size of at least 1.
+                expanderSize = 1;
+        }
+    }
+
+    uint nextPos;
+    for (cell :in cells) {
+        if (cell.size == EXPAND) {
+            cell.pos = nextPos;
+            nextPos += expanderSize + remainder;
+            remainder = 0;
+        } else {
+            cell.pos = nextPos;
+            nextPos += cell.size;
+        }
+    }
+}
+
+## Manages the positions and sizes of a set of child windows.
+@abstract class Container : Window {
+
+    Array[_Cell] _cells = {};
 
     int __focus;
+
+    bool __captive;
 
     byte backgroundAttr = 7;  # Default background attribute.
 
     oper init(Window parent) : Window(parent) {}
     oper init(TermApp app) : Window(app) {}
 
-    void __recalculate() {
-        uint used, pos, expanderCount;
-
-        # Compute fixed size values.
-        for (cell :in __cells) {
-            if (cell.size == EXPAND)
-                ++expanderCount;
-            else
-                used += cell.size;
-        }
-
-        # Split the remaining space up among the expanders.
-        int expanderSize = 1, remainder;
-        if (expanderCount) {
-            if (used < height) {
-                # Compute the size for each expander.
-                expanderSize = (height - used) / expanderCount;
-                if (expanderSize)
-                    # Keep track of the remainder, we'll give it to the first
-                    # expander.
-                    remainder = (height - used) % expanderCount;
-                else
-                    # Make sure we got a size of at least 1.
-                    expanderSize = 1;
-            }
-        }
-
-        uint nextPos;
-        for (cell :in __cells) {
-            if (cell.size == EXPAND) {
-                cell.pos = nextPos;
-                nextPos += expanderSize + remainder;
-                remainder = 0;
-            } else {
-                cell.pos = nextPos;
-                nextPos += cell.size;
-            }
-        }
-
-        # Reposition all of the windows.
-        numCells := __cells.count();
-        for (int i = 0; i < numCells; ++i) {
-            cell := __cells[i];
-            cell.win.x = 0;
-            cell.win.y = cell.pos;
-            cell.win.width = width;
-            cell.win.height =
-                ((i < numCells - 1) ? __cells[i + 1].pos : height) - cell.pos;
-        }
-    }
+    @abstract void _recalculate();
 
     ## Adds a child to the container.  'size' is the size (in characters,
     ## width or height, depending on whether this is a row or a column).  A
     ## size of EXPAND causes the control to expand to fill as much space as
     ## possible.
     void addChild(Window win, int size) {
-        if (!__cells && getFocus())
+        if (!_cells && getFocus() && win.canFocus())
             win.setFocus(true);
-        __cells.append(__Cell(win, size));
-        __recalculate();
+        _cells.append(_Cell(win, size));
+        _recalculate();
     }
 
     void onResize(uint width, uint height) {
         Window.onResize(width, height);
-        __recalculate();
+        _recalculate();
     }
 
     bool onEvent(Event event) {
@@ -104,16 +103,28 @@ class Container : Window {
 
             # Handle a tab.
             if (event.key == KEY_TAB) {
-                if (__cells) __cells[__focus].win.setFocus(false);
-                ++__focus;
-                if (__focus >= __cells.count())
-                    __focus = 0;
-                __cells[__focus].win.setFocus(true);
+                if (_cells) _cells[__focus].win.setFocus(false);
+                oldFocus := __focus;
+
+                while (true) {
+                    cerr `$(this.class.name) focus is $__focus, incrementing\n`;
+                    ++__focus;
+                    if (__focus >= _cells.count()) {
+                        if (__captive) {
+                            __focus = 0;
+                        } else {
+                            --__focus;
+                            return getParent().onEvent(event);
+                        }
+                    }
+
+                    if (_cells[__focus].win.canFocus() || __focus == oldFocus)
+                        break;
+                }
+                cerr `$(this.class.name) setting focus to $__focus\n`;
+                _cells[__focus].win.setFocus(true);
                 return true;
             }
-
-            # Hand it off to the focused child.
-            return __cells[__focus].win.onEvent(event);
         }
         return false;
     }
@@ -122,13 +133,87 @@ class Container : Window {
         gc := getGraphicsContext();
         gc.fillRect(0, 0, width, height, backgroundAttr, b' ');
 
-        for (cell :in __cells)
+        for (cell :in _cells)
             cell.win.paint();
     }
 
     void setFocus(bool focused) {
         Window.setFocus(focused);
-        if (__cells)
-            __cells[__focus].win.setFocus(focused);
+        if (_cells) {
+
+            # Make sure the focused cell can accept focus.
+            tmpFocus := __focus;
+            while (!_cells[__focus].win.canFocus()) {
+                __focus += 1;
+                if (__focus == tmpFocus)
+                    throw InvalidArgumentError('Window can not accept focus');
+            }
+
+            _cells[__focus].win.setFocus(focused);
+        }
+    }
+
+    bool canFocus() {
+        for (cell :in _cells) {
+            if (cell.win.canFocus())
+                return true;
+        }
+
+        return false;
+    }
+
+    ## Sets/clears "captive" mode.  When the tab key is pressed in a captive
+    ## container and the last child has the focus, focus is shifted to the
+    ## first child.  In a non-captive container, onEvent() returns false,
+    ## effectively delegating handling of the tab to the parent window.  This
+    ## allows container windows to be nested.  The outermost container should
+    ## be set to captive.
+    void setCaptive(bool captive) {
+        __captive = captive;
+    }
+}
+
+## Arranges its children in a column.
+class Column : Container {
+
+    oper init(Window parent) : Container(parent) {}
+    oper init(TermApp app) : Container(app) {}
+
+    void _recalculate() {
+        _recalculate(_cells, height);
+
+        # Reposition all of the windows.
+        numCells := _cells.count();
+        for (int i = 0; i < numCells; ++i) {
+            cell := _cells[i];
+            cell.win.x = 0;
+            cell.win.y = cell.pos;
+            cell.win.onResize(
+                width,
+                ((i < numCells - 1) ? _cells[i + 1].pos : height) - cell.pos
+            );
+        }
+    }
+}
+
+## Arranges its children in a row.
+class Row : Container {
+    oper init(Window parent) : Container(parent) {}
+    oper init(TermApp app) : Container(app) {}
+
+    void _recalculate() {
+        _recalculate(_cells, height);
+
+        # Reposition all of the windows.
+        numCells := _cells.count();
+        for (int i = 0; i < numCells; ++i) {
+            cell := _cells[i];
+            cell.win.x = cell.pos;
+            cell.win.y = 0;
+            cell.win.onResize(
+                ((i < numCells - 1) ? _cells[i + 1].pos : width) - cell.pos,
+                height
+            );
+        }
     }
 }
