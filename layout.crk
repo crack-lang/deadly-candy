@@ -107,7 +107,6 @@ void _recalculate(Array[_Cell] cells, int max) {
                 oldFocus := __focus;
 
                 while (true) {
-                    cerr `$(this.class.name) focus is $__focus, incrementing\n`;
                     ++__focus;
                     if (__focus >= _cells.count()) {
                         if (__captive) {
@@ -121,7 +120,6 @@ void _recalculate(Array[_Cell] cells, int max) {
                     if (_cells[__focus].win.canFocus() || __focus == oldFocus)
                         break;
                 }
-                cerr `$(this.class.name) setting focus to $__focus\n`;
                 _cells[__focus].win.setFocus(true);
                 return true;
             }
