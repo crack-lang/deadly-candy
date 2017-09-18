@@ -91,6 +91,10 @@ class Entry : Window {
                 return true;
             }
 
+            # Any other non-ascii's get delegated.
+            if (event.key < 32 || event.key > 127)
+                return getParent().onEvent(event);
+
             # Otherwise just add the character.
             if (pos < model.size) {
                 if (model.cap < model.size + 1)
