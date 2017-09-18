@@ -58,6 +58,7 @@ void runList(StringArray lines) {
     app.start();
     app.showCursor(false);
     list := List(app, lines);
+    list.setFocus(true);
     list.bind(KEY_ENTER, Function2[bool, List, Event](selected));
     app.run();
     app.showCursor(true);
