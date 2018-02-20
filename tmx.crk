@@ -2,6 +2,7 @@
 
 import crack.cont.hashmap HashMap;
 import crack.functor Function2;
+import crack.cmdline CmdOptions, Option, CMD_BOOL;
 import crack.io cout, cerr;
 import crack.sys argv, env, exit;
 import crack.exp.termui Event, KEY_ENTER;
@@ -9,6 +10,10 @@ import crack.process Process, CRK_PIPE_STDOUT;
 import crack.strutil split, StringArray;
 import termlist EventCallback, List;
 import crack.exp.termui TermApp;
+
+opts := CmdOptions![
+    Option('detach', 'd', 'Detach a window from all others.', 'false', CMD_BOOL),
+];
 
 String getDefaultWindowTitle() {
     return env.get('WINDOW_TITLE', 'Terminal!');
@@ -33,7 +38,10 @@ class RenameWindow {
 
 int attachSession(String name) {
     RenameWindow rw = {name};
-    return Process(StringArray!['tmux', 'attach-session', '-t', name]).run();
+    cmd := StringArray!['tmux', 'attach-session', '-t', name];
+    if (opts.getBool('detach'))
+        cmd.append('-d');
+    return Process(cmd).run();
 }
 
 int newSession(String name) {
@@ -78,17 +86,18 @@ if (argv.count() < 2) {
     exit(1);
 }
 
-cmd := argv[1];
+args := opts.parse();
+cmd := args[1];
 if (cmd == 'ls') {
     runList(listSessions());
 } else if (cmd == 'ses') {
     # Switch to the named session or create a new one if it doesn't exist.
-    if (argv.count() != 3) {
+    if (cmd.count() != 3) {
         cerr `usage: tmx ses <session-name>\n`;
         exit(1);
     }
 
-    session := argv[2];
+    session := args[2];
     sessions := listSessions();
     for (s :in sessions) {
         if (s && getSessionName(s) == session) {
@@ -99,13 +108,13 @@ if (cmd == 'ls') {
 
     newSession(session);
 } else if (cmd == 'bg') {
-    if (argv.count() != 4) {
+    if (cmd.count() != 4) {
         cerr `usage tmx bg <name> <command>`;
         exit(1);
     }
 
-    session := argv[2];
-    cmd := argv[3];
+    session := args[2];
+    cmd := args[3];
 
     sessions := listSessions();
     for (s :in sessions) {
