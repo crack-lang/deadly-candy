@@ -1,15 +1,18 @@
 #!/usr/local/bin/crack
 
 import crack.cont.hashmap HashMap;
-import crack.functor Function2;
+import crack.functor Functor0, Function2;
 import crack.cmdline CmdOptions, Option, CMD_BOOL;
 import crack.io cout, cerr;
 import crack.sys argv, env, exit;
 import crack.exp.termui Event, KEY_ENTER;
 import crack.process Process, CRK_PIPE_STDOUT;
 import crack.strutil split, StringArray;
-import termlist EventCallback, List;
 import crack.exp.termui TermApp;
+import .stdlist StandardList;
+import .termlist List;
+
+@import crack.ann cvars, impl;
 
 opts := CmdOptions![
     Option('detach', 'd', 'Detach a window from all others.', 'false', CMD_BOOL),
@@ -65,8 +68,13 @@ void runList(StringArray lines) {
     app := TermApp();
     app.start();
     app.showCursor(false);
-    list := List(app, lines);
+    list := StandardList(app, lines);
     list.setFocus(true);
+    class Select @impl Functor0[void] {
+        @cvars { StandardList list; }
+        void oper call() { selected(list.getList(), null) }
+    }
+    list.selectedCallback = Select(list);
     list.bind(KEY_ENTER, Function2[bool, List, Event](selected));
     app.run();
     app.showCursor(true);
