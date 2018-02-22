@@ -43,6 +43,17 @@ class List : Window {
         __bindings[key] = action;
     }
 
+    ## Show the selection at the specified index.
+    void show(uint index) {
+        if (index > model.count())
+            return;
+
+        if (index < top)
+            top = index;
+        else if (index - top >= height)
+            top = index - height + 1;
+    }
+
     bool onEvent(Event event) {
         if (event := KeyEvent.cast(event, null)) {
 

@@ -1,0 +1,253 @@
+## Standard list implementation (list plus search box).
+
+import crack.cont.array Array;
+import crack.cont.hashmap HashMap;
+import crack.exp.termui Event, KeyEvent, TermApp, Window;
+import crack.functor Functor0, Functor1, Functor2;
+import crack.lang AppendBuffer, Buffer;
+
+import .layout Column, EXPAND;
+import .entry Entry;
+import .termlist List;
+
+@import crack.ann impl;
+
+class StandardList;
+alias EventCallback = Functor2[bool, StandardList, Event].Wrap;
+
+## Shorthand to create an entry event handler.
+
+class StandardList : Column {
+
+    class _EEH @impl Functor2[bool, Entry, Event] {
+        StandardList __list;
+        function[void, StandardList] __func;
+        oper init(StandardList list, function[void, StandardList] func) :
+            __list = list,
+            __func = func {
+        }
+
+        bool oper call(Entry entry, Event event) {
+            __func(__list);
+            return true;
+        }
+    }
+
+    class _LEH @impl Functor2[bool, List, Event] {
+        StandardList __list;
+        function[void, StandardList] __func;
+        oper init(StandardList list, function[void, StandardList] func) :
+            __list = list,
+            __func = func {
+        }
+
+        bool oper call(List list, Event event) {
+            __func(__list);
+            return true;
+        }
+    }
+
+    class _CCB @impl Functor1[void, AppendBuffer] {
+        StandardList __list;
+        function[void, StandardList] __func;
+        oper init(StandardList list, function[void, StandardList] func) :
+            __list = list,
+            __func = func {
+        }
+
+        void oper call(AppendBuffer buf) {
+            __func(__list);
+        }
+    }
+
+    class _MyList : List {
+        oper init(Window parent, Array[String] model) : List(parent, model) {}
+
+        bool onEvent(Event event) {
+            if (evt := KeyEvent.cast(event, null)) {
+                if (evt.key >= 32 && evt.key < 128)
+                    return getParent().onEvent(event);
+            }
+            return List.onEvent(event);
+        }
+    }
+
+    HashMap[int, EventCallback] __bindings = {};
+    Array[String] __lines;
+    List __list;
+    Entry __entry;
+    AppendBuffer __entryBuf;
+    int __searchStart;
+
+    ## If this is defined, it gets called when the user presses "enter" to
+    ## select a search result.
+    Functor0[void] selectedCallback;
+
+    void endSearch() {
+        __list.setFocus(true);
+        __entry.setFocus(false);
+        __entryBuf.size = 0;
+        if (selectedCallback)
+            selectedCallback();
+    }
+
+    void cancelSearch() {
+        __list.setFocus(true);
+        __list.selection = __searchStart;
+        __list.show(__searchStart);
+        __entry.setFocus(false);
+        __entryBuf.size = 0;
+    }
+
+    void selectNextMatch(Buffer pattern, int start) {
+        # Iterate from the current selection with wrapping.
+        count := __lines.count();
+        i := (start + 1) % count;
+
+        while (i != start) {
+            if (__lines[i].lfind(pattern) != -1) {
+                __list.selection = i;
+                __list.show(i);
+                return;
+            }
+
+            i = (i + 1) % count;
+        }
+    }
+
+    void selectPrevMatch(Buffer pattern, int start) {
+        count := __lines.count();
+        i := (start + count - 1) % count;
+        while (i != start) {
+            if (__lines[i].lfind(pattern) != -1) {
+                __list.selection = i;
+                __list.show(i);
+                return;
+            }
+
+            i = (i + count - 1) % count;
+        }
+    }
+
+    void entryChanged() {
+        selectNextMatch(__entryBuf, __searchStart);
+    }
+
+    void searchNext() {
+        selectNextMatch(__entryBuf, __list.selection);
+    }
+
+    void searchPrev() {
+        selectPrevMatch(__entryBuf, __list.selection);
+    }
+
+    void startSearch() {
+        __list.setFocus(false);
+        __entry.setFocus(true);
+        __searchStart = __list.selection;
+    }
+
+    void __init(Array[String] lines) {
+        __lines = lines;
+        __list = _MyList(this, lines);
+        addChild(__list, EXPAND);
+        __entryBuf = AppendBuffer(256);
+        __entry = Entry(this, __entryBuf);
+        addChild(__entry, 1);
+
+        # Entry bindings: {
+
+        # Escape - cancel search.
+        __entry.bind(033, _EEH(this, cancelSearch));
+
+        # Ctrl-F - search next.
+        __entry.bind(6, _EEH(this, searchNext));
+
+        # Ctrl-G - search prev.
+        __entry.bind(7, _EEH(this, searchPrev));
+
+        # Enter - end search, leave selection.
+        __entry.bind(13, _EEH(this, endSearch));
+
+        # Change callback.
+        __entry.changeCallback = _CCB(this, entryChanged);
+        #}
+
+        # List Bindings: {
+
+        # Ctrl-F - search.
+        __list.bind(6, _LEH(this, startSearch));
+        #}
+    }
+
+    oper init(Window parent, Array[String] lines) : Column(parent) {
+        __init(lines);
+    }
+
+    oper init(TermApp app, Array[String] lines) : Column(app) {
+        __init(lines);
+    }
+
+    bool onEvent(Event event) {
+        if (evt := KeyEvent.cast(event, null)) {
+            if (handler := __bindings.get(evt.key))
+                return handler(this, event);
+
+            # Default bindings.
+
+            # Ctrl-F -- start searching
+            if (evt.key == 6)
+                startSearch();
+
+            # Any printable character -- start searching beginning with the
+            # new character.
+            if (evt.key >= 32 && evt.key < 128) {
+                __entryBuf.append(byte(evt.key));
+                __entry.pos = 1;
+                startSearch();
+            }
+
+            # Tab -- intercept so we don't go switching contexts.
+            else if (evt.key == 9)
+                return false;
+            else
+                return Column.onEvent(event);
+        }
+
+        return Column.onEvent(event);
+    }
+
+    ## Bind a function to the underlying list.
+    @final void bind(int key, Functor2[bool, List, Event] func) {
+        __list.bind(key, func);
+    }
+
+    void setFocus(bool focused) {
+        if (focused)
+            __list.setFocus(true);
+        else
+            Column.setFocus(focused);
+    }
+
+    ## Returns the underlying list control.
+    @final List getList() { return __list }
+}
+
+@import crack.ann SCOPE_NAME;
+if (@SCOPE_NAME == '.main') {
+    import crack.ascii rstrip;
+    import crack.sys argv;
+    import crack.fs makePath;
+    app := TermApp();
+    app.start();
+    Array[String] results = {};
+
+    for (line :in makePath(argv[1]).makeFullReader())
+        results.append(rstrip(line));
+    list := StandardList(app, results);
+    list.setFocus(true);
+    app.showCursor(false);
+    app.run();
+    app.showCursor(true);
+    app.stop();
+}
