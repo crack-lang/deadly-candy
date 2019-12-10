@@ -1,0 +1,202 @@
+
+import crack.cont.array Array;
+import crack.cont.hashmap HashMap;
+import crack.exp.termui Event, GraphicsContext, KeyEvent, TermApp, Window,
+    KEY_ENTER, KEY_ESC, KEY_DOWN, KEY_LEFT, KEY_PGDN, KEY_RIGHT, KEY_PGUP,
+    KEY_UP;
+import crack.functor Functor2;
+import crack.math max, min;
+
+@import crack.ann cvars;
+
+class Table;
+alias EventCallback = Functor2[bool, Table, Event];
+alias TableModel = Array[Array[String]];
+
+@export_symbols EventCallback, TableModel;
+
+## Update 'widths' to be at least large enough to accomodate 'contents' for
+## columns beginning at 'start'.
+## Formally, this sets widths[i] to
+## max(widths[i], contents[start + i].count()).
+## widths: Result array, must be of size contents.count() - start and must be
+##     initialized with the existing minimum values.
+## contents: Array of contents.
+## start:
+void updateWidths(Array[int] widths, Array[String] contents, int start) {
+    for (int i = 0; i < contents.count() - start; ++i)
+        widths[i] = max(widths[i], contents[start + i].count());
+}
+
+class Table : Window {
+
+    TableModel model;
+
+    ## Top line index.
+    uint top = 0;
+
+    ## The left-most column.
+    uint left = 0;
+
+    ## Selected line index.
+    uint selection;
+
+    HashMap[int, EventCallback] __bindings = {};
+
+    byte
+        normalAttr = 6,  # cyan
+        selectionAttr = 0x47, # white on blue
+        matchAttr = 0x43, # yellow on blue
+        unfocusedSelectionAttr = 0x86, # Underlined, cyan
+        headerAttr = 0xF; # bold white
+
+    ## If true, show the database header.
+    bool showHeaders;
+
+    oper init(TermApp app, TableModel model) : Window(app), model = model {
+        size := app.getSize();
+        width = size.x;
+        height = size.y;
+    }
+
+    oper init(Window parent, TableModel model) :
+        Window(parent),
+        model = model {
+    }
+
+    void bind(int key, EventCallback action) {
+        __bindings[key] = action;
+    }
+
+    ## Show the selection at the specified index.
+    void show(uint index) {
+        if (index > model.count())
+            return;
+
+        if (index < top)
+            top = index;
+        else if (index - top >= height)
+            top = index - height + 1;
+    }
+
+    ## Return the minimum number of columns in all of the rows.
+    int __minCols() {
+        if (!model)
+            return 0;
+        result := model[0].count();
+        for (row :in model)
+            result = min(result, row[0].count());
+        return result;
+    }
+
+    bool onEvent(Event event) {
+        if (event := KeyEvent.cast(event, null)) {
+
+            if (handler := __bindings.get(event.key))
+                return handler(this, event);
+
+            if (event.key == KEY_UP && selection > (showHeaders ? 1 : 0)) {
+                --selection;
+                if (selection < top)
+                    top = selection;
+            } else if (event.key == KEY_DOWN &&
+                       selection < model.count() - 1) {
+                ++selection;
+                if (selection - top >= height)
+                    top = selection - height + 1;
+            } else if (event.key == KEY_LEFT && left > 0) {
+                left--;
+            } else if (event.key == KEY_RIGHT && left < __minCols()) {
+                left++;
+            } else if (event.key == KEY_PGUP) {
+                if (top < height) {
+                    # Go to the top, leave the selection the same.
+                    top = 0;
+                } else {
+                    # Go one page up, move selection one page up.
+                    top = top - height;
+                    if (selection >= height + (showHeaders ? 1 : 0))
+                        selection -= height;
+                }
+            } else if (event.key == KEY_PGDN) {
+                if (top + height > model.count() - height) {
+                    top = model.count() - height;
+                    selection += height;
+                    if (selection >= model.count())
+                        selection = model.count() - 1;
+                } else {
+                    top += height;
+                    if (selection < model.count() - height)
+                        selection += height;
+                }
+            } else if (event.key == KEY_ESC) {
+                getApp().terminate();
+            }
+        }
+        return true;
+    }
+
+    Array[int] calcColumnWidths() {
+        result := Array[int](model[top].count() - left, 0);
+
+        # The current column index.
+        int col;
+        for (int y = 0; y < height; ++y) {
+            if (y < model.count())
+                updateWidths(result, model[top + y], left);
+        }
+
+        # Add the header row if appropriate.
+        if (showHeaders && top > 0 && model)
+            updateWidths(result, model[0], left);
+
+        return result;
+    }
+
+    class PaintContext {
+        @cvars {
+            GraphicsContext gc;
+            Array[int] widths;
+            int left;
+        }
+
+        void paintRow(int y, byte attr, Array[String] row) {
+            x := 0;
+            for (int col = left; col < row.count(); ++col) {
+                gc.write(x, y, attr, row[col]);
+                width := row[col].count();
+                paddedWidth := widths[col - left];
+
+                # Write the padding.
+                for (int i = 0; i < paddedWidth - width; ++i)
+                    gc.write(x + width + i, y, attr, ' ');
+
+                gc.write(x + paddedWidth, y, attr, '|');
+                x += paddedWidth + 1;
+            }
+        }
+    }
+
+    void paint() {
+        gc := getGraphicsContext();
+        gc.fillRect(0, 0, width, height, 0, b' ');
+        focused := getFocus();
+        widths := calcColumnWidths();
+        pc := PaintContext(gc, widths, left);
+
+        for (int y = 0; y < height; ++y) {
+
+            # Replace the top row with the header if appropriate.
+            if (showHeaders && y == 0 && model) {
+                pc.paintRow(y, headerAttr, model[0]);
+                continue;
+            }
+
+            if (top + y >= model.count())
+                break;
+
+            attr := (y + top == selection) ? selectionAttr : normalAttr;
+            pc.paintRow(y, attr, model[top + y]);
+        }
+    }
+}
