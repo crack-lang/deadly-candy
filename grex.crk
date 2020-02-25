@@ -165,6 +165,15 @@ entry.bind(7, eeh(searchPrev));
 # Enter - end search, leave selection.
 entry.bind(13, eeh(endSearch));
 
+# Esc - exit app.
+list.bind(033,
+          Function2[bool, List, Event](
+            lambda bool(List list, Event evt) {
+                app.terminate(); return true
+            }
+           )
+          );
+
 entry.changeCallback = Function1[void, AppendBuffer](entryChanged);
 
 list.setFocus(true);
