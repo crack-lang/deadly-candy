@@ -169,6 +169,13 @@ void _recalculate(Array[_Cell] cells, int max) {
     void setCaptive(bool captive) {
         __captive = captive;
     }
+
+    ## Changes the size of a given cell, referenced by index.  'size' is
+    ## either width or height, depending on whether this is a row or a column.
+    ## The size change will not take effect until the next resize.
+    void setCellSize(uint index, uint size) {
+        _cells[index].size = size;
+    }
 }
 
 ## Arranges its children in a column.
