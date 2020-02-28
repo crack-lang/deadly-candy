@@ -15,20 +15,38 @@
 import crack.cont.array Array;
 import crack.cont.hashmap HashMap;
 import crack.exp.termui Event, KeyEvent, TermApp, Window, KEY_ENTER, KEY_ESC,
-    KEY_DOWN, KEY_PGDN, KEY_PGUP, KEY_UP;
+    KEY_DOWN, KEY_LEFT, KEY_PGDN, KEY_RIGHT, KEY_PGUP, KEY_UP;
 import crack.functor Functor2;
+import crack.math max, min;
 
-class List;
-alias EventCallback = Functor2[bool, List, Event];
+class Table;
+alias EventCallback = Functor2[bool, Table, Event];
+alias TableModel = Array[Array[String]];
 
-@export_symbols EventCallback;
+@export_symbols EventCallback, TableModel;
 
-class List : Window {
+## Update 'widths' to be at least large enough to accomodate 'contents' for
+## columns beginning at 'start'.
+## Formally, this sets widths[i] to
+## max(widths[i], contents[start + i].count()).
+## widths: Result array, must be of size contents.count() - start and must be
+##     initialized with the existing minimum values.
+## contents: Array of contents.
+## start:
+void updateWidths(Array[int] widths, Array[String] contents, int start) {
+    for (int i = 0; i < contents.count() - start; ++i)
+        widths[i] = max(widths[i], contents[start + i].count());
+}
 
-    Array[String] model;
+class Table : Window {
+
+    TableModel model;
 
     ## Top line index.
     uint top = 0;
+
+    ## The left-most column.
+    uint left = 0;
 
     ## Selected line index.
     uint selection;
@@ -41,13 +59,13 @@ class List : Window {
         matchAttr = 0x43, # yellow on blue
         unfocusedSelectionAttr = 0x86; # Underlined, cyan
 
-    oper init(TermApp app, Array[String] model) : Window(app), model = model {
+    oper init(TermApp app, TableModel model) : Window(app), model = model {
         size := app.getSize();
         width = size.x;
         height = size.y;
     }
 
-    oper init(Window parent, Array[String] model) :
+    oper init(Window parent, TableModel model) :
         Window(parent),
         model = model {
     }
@@ -67,6 +85,16 @@ class List : Window {
             top = index - height + 1;
     }
 
+    ## Return the minimum number of columns in all of the rows.
+    int __minCols() {
+        if (!model)
+            return 0;
+        result := model[0].count();
+        for (row :in model)
+            result = min(result, row[0].count());
+        return result;
+    }
+
     bool onEvent(Event event) {
         if (event := KeyEvent.cast(event, null)) {
 
@@ -82,6 +110,10 @@ class List : Window {
                 ++selection;
                 if (selection - top >= height)
                     top = selection - height + 1;
+            } else if (event.key == KEY_LEFT && left > 0) {
+                left--;
+            } else if (event.key == KEY_RIGHT && left < __minCols()) {
+                left++;
             } else if (event.key == KEY_PGUP) {
                 if (top < height) {
                     # Go to the top, leave the selection the same.
@@ -100,29 +132,68 @@ class List : Window {
                     if (selection < model.count() - height)
                         selection += height;
                 }
-            } else {
-                return false;
+            } else if (event.key == KEY_ESC) {
+                getApp().terminate();
             }
         }
         return true;
     }
 
+    Array[int] calcColumnWidths() {
+        result := Array[int](model[top].count() - left, 0);
+
+        # The current column index.
+        int col;
+        for (int y = 0; y < height; ++y) {
+            if (y < model.count())
+                updateWidths(result, model[top + y], left);
+        }
+
+        return result;
+    }
+
     void paint() {
         gc := getGraphicsContext();
         gc.fillRect(0, 0, x, y, 0, b' ');
-        cur := model.iter();
-        cur.index = top;
         focused := getFocus();
-        for (int y = 0; cur && y - top < height; ++y) {
-            selected := y + top == selection;
-            if (focused && y + top == selection)
-                gc.write(0, y, selectionAttr, cur.elem());
-            else if (selected)
-                gc.write(0, y, unfocusedSelectionAttr, cur.elem());
-            else
-                gc.write(0, y, normalAttr, cur.elem());
-            cur.next();
+
+        widths := calcColumnWidths();
+
+        for (int y = 0; y < height; ++y) {
+            if (top + y >= model.count())
+                continue;
+            row := model[top + y];
+            x := 0;
+
+            attr := (y + top == selection) ? selectionAttr : normalAttr;
+
+            for (int col = left; col < row.count(); ++col) {
+                gc.write(x, y, attr, row[col]);
+                width := row[col].count();
+                paddedWidth := widths[col - left];
+
+                # Write the padding.
+                for (int i = 0; i < paddedWidth - width; ++i)
+                    gc.write(x + width + i, y, attr, ' ');
+
+                gc.write(x + paddedWidth, y, attr, '|');
+                x += paddedWidth + 1;
+            }
         }
     }
 }
 
+#import crack.ascii wsplit;
+#import crack.fs makePath;
+#words := wsplit(makePath('/home/mmuller/doc/FixingInterfaces.txt').readAll());
+#model := TableModel();
+#for (int i; i < words.count() / 10; ++i)
+#    model.append(words.subarray(i * 10, 10));
+#
+#app := TermApp();
+#app.start();
+#app.showCursor(false);
+#table := Table(app, model);
+#app.run();
+#app.showCursor(true);
+#app.stop();
