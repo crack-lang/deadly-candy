@@ -1,0 +1,35 @@
+import crack.cont.array Array;
+import crack.exp.termui TermApp;
+import crack.io cout, FStr;
+import crack.lang AppendBuffer;
+import .entry Entry;
+import .layout Column, EXPAND;
+import .table Table, TableModel;
+
+model := TableModel();
+headers := Array[String]();
+for (col := 0; col < 20; ++col)
+  headers.append(FStr() `header $col`);
+model.append(headers);
+
+for (i := 0; i < 100; ++i) {
+  row := Array[String]();
+  for (col := 0; col < 20; ++col)
+    row.append(FStr() `$i$(String(1, byte(col + b'A')))`);
+  model.append(row);
+}
+
+app := TermApp();
+app.start();
+app.showCursor(false);
+
+column := Column(app);
+column.addChild(table := Table(app, model), EXPAND);
+table.showHeaders = true;
+buf := AppendBuffer(256);
+column.addChild(Entry(column, buf), 1);
+
+table.setFocus(true);
+app.run();
+app.showCursor(true);
+app.stop();

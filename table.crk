@@ -14,10 +14,13 @@
 
 import crack.cont.array Array;
 import crack.cont.hashmap HashMap;
-import crack.exp.termui Event, KeyEvent, TermApp, Window, KEY_ENTER, KEY_ESC,
-    KEY_DOWN, KEY_LEFT, KEY_PGDN, KEY_RIGHT, KEY_PGUP, KEY_UP;
+import crack.exp.termui Event, GraphicsContext, KeyEvent, TermApp, Window,
+    KEY_ENTER, KEY_ESC, KEY_DOWN, KEY_LEFT, KEY_PGDN, KEY_RIGHT, KEY_PGUP,
+    KEY_UP;
 import crack.functor Functor2;
 import crack.math max, min;
+
+@import crack.ann cvars;
 
 class Table;
 alias EventCallback = Functor2[bool, Table, Event];
@@ -44,7 +47,6 @@ class Table : Window {
 
     ## Top line index.
     uint top = 0;
-
     ## The left-most column.
     uint left = 0;
 
@@ -57,7 +59,11 @@ class Table : Window {
         normalAttr = 6,  # cyan
         selectionAttr = 0x47, # white on blue
         matchAttr = 0x43, # yellow on blue
-        unfocusedSelectionAttr = 0x86; # Underlined, cyan
+        unfocusedSelectionAttr = 0x86, # Underlined, cyan
+        headerAttr = 0xF; # bold white
+
+    ## If true, show the database header.
+    bool showHeaders;
 
     oper init(TermApp app, TableModel model) : Window(app), model = model {
         size := app.getSize();
@@ -97,11 +103,10 @@ class Table : Window {
 
     bool onEvent(Event event) {
         if (event := KeyEvent.cast(event, null)) {
-
             if (handler := __bindings.get(event.key))
                 return handler(this, event);
 
-            if (event.key == KEY_UP && selection > 0) {
+            if (event.key == KEY_UP && > (showHeaders ? 1 : 0)) {
                 --selection;
                 if (selection < top)
                     top = selection;
@@ -147,53 +152,45 @@ class Table : Window {
         for (int y = 0; y < height; ++y) {
             if (y < model.count())
                 updateWidths(result, model[top + y], left);
-        }
-
         return result;
     }
 
+    class PaintContext {
+        @cvars {
+            GraphicsContext gc;
+            Array[int] widths;
+            int left;
+        }
+
+        void paintRow(int y, byte attr, Array[String] row) {
+             x := 0;
+             for (int col = left; col < row.count(); ++col) {
+                 gc.write(x, y, attr, row[col]);
+                 width := row[col].count();
+             }
+         }
+     }
+
     void paint() {
         gc := getGraphicsContext();
-        gc.fillRect(0, 0, x, y, 0, b' ');
+        gc.fillRect(0, 0, width, height, 0, b' ');
         focused := getFocus();
-
         widths := calcColumnWidths();
+        pc := PaintContext(gc, widths, left);
 
         for (int y = 0; y < height; ++y) {
-            if (top + y >= model.count())
+
+            # Replace the top row with the header if appropriate.
+            if (showHeaders && y == 0 && model) {
+                pc.paintRow(y, headerAttr, model[0]);
                 continue;
-            row := model[top + y];
-            x := 0;
+            }
+
+            if (top + y >= model.count())
+                break;
 
             attr := (y + top == selection) ? selectionAttr : normalAttr;
-
-            for (int col = left; col < row.count(); ++col) {
-                gc.write(x, y, attr, row[col]);
-                width := row[col].count();
-                paddedWidth := widths[col - left];
-
-                # Write the padding.
-                for (int i = 0; i < paddedWidth - width; ++i)
-                    gc.write(x + width + i, y, attr, ' ');
-
-                gc.write(x + paddedWidth, y, attr, '|');
-                x += paddedWidth + 1;
-            }
+            pc.paintRow(y, attr, model[top + y]);
         }
     }
 }
-
-#import crack.ascii wsplit;
-#import crack.fs makePath;
-#words := wsplit(makePath('/home/mmuller/doc/FixingInterfaces.txt').readAll());
-#model := TableModel();
-#for (int i; i < words.count() / 10; ++i)
-#    model.append(words.subarray(i * 10, 10));
-#
-#app := TermApp();
-#app.start();
-#app.showCursor(false);
-#table := Table(app, model);
-#app.run();
-#app.showCursor(true);
-#app.stop();
