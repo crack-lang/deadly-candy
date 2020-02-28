@@ -31,12 +31,24 @@ class CmdProcHandler : ProcessHandlerImpl {
     }
 }
 
+class DevNullHandler : ProcessHandlerImpl {
+    void onErrLine(Buffer line) {}
+    void onOutLine(Buffer line) {}
+}
+
 class Cmd : StringArray {
     oper init(int size) : StringArray(size) {}
 
+    ## Run the command and append output to the list.
     void run(Array[String] list) {
         proc := Process(this, CRK_PIPE_STDOUT | CRK_PIPE_STDERR);
         proc.run(CmdProcHandler(list));
+    }
+
+    ## Run the command and discard output.
+    void run() {
+        proc := Process(this, CRK_PIPE_STDOUT | CRK_PIPE_STDERR);
+        proc.run(DevNullHandler());
     }
 }
 
@@ -69,7 +81,7 @@ String result;
 bool select(List list, Event event) {
     result = lines[list.selection];
     colon := result.lfind(b':');
-    Cmd!['yed', result.substr(0, colon)].run(lines);
+    Cmd!['yed', result.substr(0, colon)].run();
     return true;
 }
 
