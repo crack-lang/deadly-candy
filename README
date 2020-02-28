@@ -1,5 +1,40 @@
-"Deadly Candy" - aka "Terminal Crack"
+"Deadly Candy" ("Terminal Crack")
+=================================
 
-This might end up to be a shell that ties together terminal interfaces using
-crash and termui and a bunch of general purpose widgets.  Kind of like Tcl/Tk
-for terminals extensible in crack.
+Deadly Candy is a terminal library for the Crack programming language.  It
+builds on the experimental crack.exp.termui module to provide a terminal
+widget library.
+
+It also includes a few general purpose command-line tools that it was
+developed in the context of.
+
+Basic overview:
+
+termlist::
+    Contains the List widget.
+entry::
+    A single line entryfield.
+layout::
+    Layout controls (Row and Column).  These manage position and size of their
+    children and navigation between them.
+stdlist::
+    A list with an associated search box.
+table::
+    A multi-column list, suitable for displaying tabular data.
+termevent::
+    Tool for seeing events that are received.
+tmx::
+    Tmux wrapper.  Let's you select a session from a list.
+
+Utilities
+---------
+
+csview::
+    Displays CSV files.
+grex::
+    An application that invokes grep and lists the locations that match the
+    expression, allowing you to navigate to those files in your editor.
+list::
+    A tool for displaying a list of lines from standard input (doesn't
+    currently work)
+
