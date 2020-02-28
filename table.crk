@@ -24,8 +24,11 @@ alias TableModel = Array[Array[String]];
 ## contents: Array of contents.
 ## start:
 void updateWidths(Array[int] widths, Array[String] contents, int start) {
-    for (int i = 0; i < contents.count() - start; ++i)
+    for (int i = 0; i < contents.count() - start; ++i) {
+        while (i >= widths.count())
+            widths.append(0);
         widths[i] = max(widths[i], contents[start + i].count());
+    }
 }
 
 class Table : Window {
