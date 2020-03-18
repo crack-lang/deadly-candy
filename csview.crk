@@ -23,24 +23,42 @@
 # limitations under the License.
 
 import crack.ascii rstrip;
-import crack.exp.termui TermApp;
+import crack.exp.termui Event, KeyEvent, TermApp;
 import crack.fs makePath;
+import crack.io cerr;
 import crack.io.readers LineReader;
-import crack.lang AppendBuffer;
+import crack.lang AppendBuffer, IndexError;
 import crack.sys argv;
 import crack.enc.csv parseLine;
 import .entry Entry;
 import .layout Column, EXPAND;
 import .table TableModel, Table;
 
+const KEY_F3 := '\033OR';
+
+class MyApp : TermApp {
+    void onEvent(Event event) {
+        if ((ke := KeyEvent.cast(event, null)) && ke.data == KEY_F3)
+            terminate();
+        else
+            TermApp.onEvent(event);
+    }
+}
+
 # Load the CSV.
 model := TableModel();
-src := LineReader(makePath(argv[1]).reader());
-for (line :in src)
-  model.append(parseLine(rstrip(line)));
+try {
+    src := LineReader(makePath(argv[1]).reader());
+    for (line :in src)
+        model.append(parseLine(rstrip(line)));
+} catch (IndexError ex) {
+    cerr I`Usage: csview <csv-file>
+           CSV File viewer.  Use F3 to quit, arrows to navigate.
+           `;
+}
 
 # Start the UI.
-app := TermApp();
+app := MyApp();
 app.start();
 
 column := Column(app);

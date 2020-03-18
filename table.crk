@@ -145,8 +145,6 @@ class Table : Window {
                     if (selection < model.count() - height)
                         selection += height;
                 }
-            } else if (event.key == KEY_ESC) {
-                getApp().terminate();
             }
         }
         return true;
