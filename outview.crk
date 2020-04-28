@@ -1,0 +1,278 @@
+## Output viewer    .
+##
+## Module containing tools to let you view and search the output of a command
+## and do some action when the user selects a line and hits "enter".
+
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import crack.ascii rstrip;
+import crack.cont.array Array;
+import crack.exp.termui Event, KeyEvent, TermApp;
+import crack.functor Functor1, Functor2;
+import crack.io cout, cerr;
+import crack.lang AppendBuffer, Buffer;
+import crack.strutil StringArray;
+import crack.process Process, ProcessHandlerImpl, CRK_PIPE_STDERR,
+    CRK_PIPE_STDOUT;
+import crack.sys argv, env;
+
+import entry Entry;
+import layout Column, EXPAND;
+import termlist List;
+import util convertKey, KEY_F3;
+
+@import crack.ann cvars, impl, SCOPE_NAME;
+
+class CmdProcHandler : ProcessHandlerImpl {
+
+    Array[String] listModel;
+
+    oper init(Array[String] listModel) : listModel = listModel {}
+
+    void onErrLine(Buffer line) {
+        listModel.append(rstrip(String(line)));
+    }
+
+    void onOutLine(Buffer line) {
+        listModel.append(rstrip(String(line)));
+    }
+}
+
+class DevNullHandler : ProcessHandlerImpl {
+    void onErrLine(Buffer line) {}
+    void onOutLine(Buffer line) {}
+}
+
+class Cmd : StringArray {
+    oper init(int size) : StringArray(size) {}
+
+    oper init(Array[String] contents) : StringArray(contents.count()) {
+        extend(contents);
+    }
+
+    ## Run the command and append output to the list.
+    void run(Array[String] list) {
+        proc := Process(this, CRK_PIPE_STDOUT | CRK_PIPE_STDERR);
+        proc.run(CmdProcHandler(list));
+    }
+
+    ## Run the command and discard output.
+    void run() {
+        proc := Process(this, CRK_PIPE_STDOUT | CRK_PIPE_STDERR);
+        proc.run(DevNullHandler());
+    }
+}
+
+class OutputViewer : Column {
+
+    ## The list index where we start searching.  This gets rehomed every time we
+    ## do "startSearch".
+    int searchStart;
+
+    ## Function to call when a line is selected (by hitting enter).
+    Functor1[void, String] __lineSelected;
+
+    StringArray __lines;
+    AppendBuffer entryBuf = {256};
+    List list;
+    Entry entry;
+
+    ## Allows you to use a method as an event handler.
+    class Bound[Widget] @impl Functor2[bool, Widget, Event] {
+        @cvars {
+            OutputViewer self;
+            function[bool, OutputViewer, Widget, Event] meth;
+        }
+
+        bool oper call(Widget widget, Event event) {
+            return meth(self, widget, event);
+        }
+    }
+
+    bool select(List list, Event event) {
+        line := __lines[list.selection];
+        __lineSelected(line);
+        return true;
+    }
+
+    bool startSearch(List list, Event event) {
+        list.setFocus(false);
+        entry.setFocus(true);
+        searchStart = list.selection;
+        return true;
+    }
+
+    bool terminate(List list, Event event) {
+        getApp().terminate();
+        return true;
+    }
+
+    bool endSearch(Entry entry, Event event) {
+        list.setFocus(true);
+        entry.setFocus(false);
+        entryBuf.size = 0;
+        return true;
+    }
+
+    bool cancelSearch(Entry entry, Event event) {
+        list.setFocus(true);
+        list.selection = searchStart;
+        entry.setFocus(false);
+        entryBuf.size = 0;
+        return true;
+    }
+
+    void selectNextMatch(Buffer pattern, int start) {
+        # Iterate from the current selection with wrapping.
+        count := __lines.count();
+        i := (start + 1) % count;
+
+        while (i != start) {
+            if (__lines[i].lfind(pattern) != -1) {
+                list.selection = i;
+                return;
+            }
+
+            i = (i + 1) % count;
+        }
+    }
+
+    void selectPrevMatch(Buffer pattern, int start) {
+        count := __lines.count();
+        i := (start + count - 1) % count;
+        while (i != start) {
+            if (__lines[i].lfind(pattern) != -1) {
+                list.selection = i;
+                return;
+            }
+
+            i = (i + count - 1) % count;
+        }
+    }
+
+    void entryChanged(AppendBuffer model) {
+        selectNextMatch(model, searchStart);
+    }
+
+    class BoundEntryChanged @impl Functor1[void, AppendBuffer] {
+        @cvars {
+            OutputViewer self;
+        }
+        void oper call(AppendBuffer buf) { self.entryChanged(buf) }
+    }
+
+    bool searchNext(Entry entry, Event event) {
+        selectNextMatch(entryBuf, list.selection);
+        return true;
+    }
+
+    bool searchPrev(Entry entry, Event event) {
+        selectPrevMatch(entryBuf, list.selection);
+        return true;
+    }
+
+    oper init(TermApp app,
+              StringArray lines,
+              Functor1[void, String] lineSelected
+              ) :
+        Column(app),
+        __lineSelected = lineSelected,
+        __lines = lines,
+        list(this, lines),
+        entry(this, entryBuf) {
+
+        addChild(list, EXPAND);
+        addChild(entry, 1);
+
+        list.bind(b'\r', Bound[List](this, select));
+
+        # List Bindings.
+
+        # Ctrl-F brings up search.
+        list.bind(6, Bound[List](this, startSearch));
+
+        # F3 - terminates.
+        list.bind(KEY_F3, Bound[List](this, terminate));
+
+        # Entryfield bindings.
+
+        # Esc, F3 - cancel search
+        entry.bind(033, Bound[Entry](this, cancelSearch));
+        entry.bind(KEY_F3, Bound[Entry](this, cancelSearch));
+
+        # Ctrl-F - search next.
+        entry.bind(6, Bound[Entry](this, searchNext));
+
+        # Ctrl-G - search prev.
+        entry.bind(7, Bound[Entry](this, searchPrev));
+
+        # Enter - end search, leave selection.
+        entry.bind(13, Bound[Entry](this, endSearch));
+
+        entry.changeCallback = BoundEntryChanged(this);
+        list.setFocus(true);
+    }
+
+    bool onEvent(Event event) {
+        if (event := KeyEvent.cast(event, null)) {
+            if (convertKey(event) == KEY_F3) {
+                getApp().terminate();
+                return true;
+            }
+        }
+        return Column.onEvent(event);
+    }
+}
+
+## Run with a bunch of lines and a selection function.
+int main(StringArray lines, Functor1[void, String] lineSelected) {
+
+    # Start the UI.
+    app := TermApp();
+    app.start();
+    app.showCursor(false);
+    list := OutputViewer(app, lines, lineSelected);
+    app.run();
+    app.showCursor(true);
+    app.stop();
+    return 0;
+}
+
+## Returns the editor command from the EDITOR environment variable, using
+## "vi" as a default if this isn't found.
+String getEditorCommand() {
+    editor := env.get('EDITOR');
+    if (!editor)
+        editor = 'vi';
+    return editor;
+}
+
+void select(String line) {
+    colon := line.lfind(b':');
+
+    # Assume that the filename is the text up to the first colon or the entire
+    # line if there is no colon.
+    filename := colon == -1 ? rstrip(line) : line.substr(0, colon);
+    Cmd![getEditorCommand(), filename].run();
+}
+
+if (@SCOPE_NAME == '.main') {
+    # Invoke the command.
+    lines := StringArray();
+    Cmd(argv.subarray(1)).run(lines);
+
+    main(lines, Functor1[void, String].Wrap(select));
+}
+

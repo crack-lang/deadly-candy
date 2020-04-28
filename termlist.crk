@@ -18,6 +18,8 @@ import crack.exp.termui Event, KeyEvent, TermApp, Window, KEY_ENTER, KEY_ESC,
     KEY_DOWN, KEY_PGDN, KEY_PGUP, KEY_UP;
 import crack.functor Functor2;
 
+import .util convertKey;
+
 class List;
 alias EventCallback = Functor2[bool, List, Event];
 
@@ -70,7 +72,7 @@ class List : Window {
     bool onEvent(Event event) {
         if (event := KeyEvent.cast(event, null)) {
 
-            if (handler := __bindings.get(event.key))
+            if (handler := __bindings.get(convertKey(event)))
                 return handler(this, event);
 
             if (event.key == KEY_UP && selection > 0) {

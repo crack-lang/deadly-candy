@@ -1,0 +1,66 @@
+## Utility functions.
+
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import crack.exp.termui KeyEvent;
+
+const int
+    KEY_F1 = 262,
+    KEY_F2 = 263,
+    KEY_F3 = 264,
+    KEY_F4 = 265,
+    KEY_F5 = 266,
+    KEY_F6 = 267,
+    KEY_F7 = 268,
+    KEY_F8 = 269,
+    KEY_F9 = 270,
+    KEY_F10 = 271,
+    KEY_F11 = 272,
+    KEY_F12 = 273;
+
+## Convert a key event to one of the extended keycodes.
+##
+## This is something that should really happen in crack.exp.termui, but isn't
+## there yet.
+int convertKey(KeyEvent event) {
+    if (event.key == 033 && event.data.size > 1) {
+        if (event.data == '\033OP')
+            return KEY_F1;
+        else if (event.data == '\033OQ')
+            return KEY_F2;
+        else if (event.data == '\033OR')
+            return KEY_F3;
+        else if (event.data == '\033OS')
+            return KEY_F4;
+        else if (event.data == '\033[15~')
+            return KEY_F5;
+        else if (event.data == '\033[17~')
+            return KEY_F6;
+        else if (event.data == '\033[18~')
+            return KEY_F7;
+        else if (event.data == '\033[19~')
+            return KEY_F8;
+        else if (event.data == '\033[20~')
+            return KEY_F9;
+        else if (event.data == '\033[21~')
+            return KEY_F10;
+        else if (event.data == '\033[23~')
+            return KEY_F11;
+        else if (event.data == '\033[24~')
+            return KEY_F12;
+    }
+    return event.key;
+}
+
