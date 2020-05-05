@@ -1,4 +1,4 @@
-## Output viewer    .
+## Output viewer.
 ##
 ## Module containing tools to let you view and search the output of a command
 ## and do some action when the user selects a line and hits "enter".
@@ -20,6 +20,8 @@
 import crack.ascii rstrip;
 import crack.cont.array Array;
 import crack.exp.termui Event, KeyEvent, TermApp;
+import crack.ffmt.ini iniParser, IniMap;
+import crack.fs makePath, Path;
 import crack.functor Functor1, Functor2;
 import crack.io cout, cerr;
 import crack.lang AppendBuffer, Buffer;
@@ -72,6 +74,43 @@ class Cmd : StringArray {
     void run() {
         proc := Process(this, CRK_PIPE_STDOUT | CRK_PIPE_STDERR);
         proc.run(DevNullHandler());
+    }
+}
+
+## Configuration object.
+class Config {
+
+    ## Editor name or 'null' if not defined.  You probably want to use
+    ## getEditorCommand() instead, as this also consults the EDITOR variable.
+    String editor;
+
+    oper init() {}
+
+    @static Config read(Path filename) {
+        config := Config();
+        if (filename.exists()) {
+            rep := iniParser.parse(filename.readAll());
+            section := rep.get('outview');
+            config.editor = section.get('editor');
+        }
+
+        return config;
+    }
+
+    ## Configure from a config file with the given name.
+    @static Config read(String name) {
+        return read(makePath(env['HOME'])/'.config'/name);
+    }
+
+    ## Returns the editor command from the local configuration, the EDITOR
+    ## environment variable, or "vi" if neither of these are defined.
+    String getEditorCommand() {
+        if (editor)
+            return editor;
+        else if (editor := env.get('EDITOR'))
+            return editor;
+        else
+            return 'vi'
     }
 }
 
@@ -212,8 +251,9 @@ class OutputViewer : Column {
         entry.bind(033, Bound[Entry](this, cancelSearch));
         entry.bind(KEY_F3, Bound[Entry](this, cancelSearch));
 
-        # Ctrl-F - search next.
+        # Ctrl-F or slash - search next.
         entry.bind(6, Bound[Entry](this, searchNext));
+        entry.bind(b'/', Bound[Entry](this, searchNext));
 
         # Ctrl-G - search prev.
         entry.bind(7, Bound[Entry](this, searchPrev));
@@ -250,22 +290,20 @@ int main(StringArray lines, Functor1[void, String] lineSelected) {
     return 0;
 }
 
-## Returns the editor command from the EDITOR environment variable, using
-## "vi" as a default if this isn't found.
-String getEditorCommand() {
-    editor := env.get('EDITOR');
-    if (!editor)
-        editor = 'vi';
-    return editor;
-}
+class Selector @impl Functor1[void, String] {
+    @cvars {
+        Config config;
+    }
 
-void select(String line) {
-    colon := line.lfind(b':');
+    void oper call(String line) {
+        colon := line.lfind(b':');
 
-    # Assume that the filename is the text up to the first colon or the entire
-    # line if there is no colon.
-    filename := colon == -1 ? rstrip(line) : line.substr(0, colon);
-    Cmd![getEditorCommand(), filename].run();
+        # Assume that the filename is the text up to the first colon or the entire
+        # line if there is no colon.
+        filename := colon == -1 ? rstrip(line) : line.substr(0, colon);
+        cerr `xxx editor is $(config.getEditorCommand())\n`;
+        Cmd![config.getEditorCommand(), filename].run();
+    }
 }
 
 if (@SCOPE_NAME == '.main') {
@@ -273,6 +311,7 @@ if (@SCOPE_NAME == '.main') {
     lines := StringArray();
     Cmd(argv.subarray(1)).run(lines);
 
-    main(lines, Functor1[void, String].Wrap(select));
+    config := Config.read('outview');
+    main(lines, Selector(config));
 }
 
