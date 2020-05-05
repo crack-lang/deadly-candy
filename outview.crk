@@ -301,7 +301,6 @@ class Selector @impl Functor1[void, String] {
         # Assume that the filename is the text up to the first colon or the entire
         # line if there is no colon.
         filename := colon == -1 ? rstrip(line) : line.substr(0, colon);
-        cerr `xxx editor is $(config.getEditorCommand())\n`;
         Cmd![config.getEditorCommand(), filename].run();
     }
 }
