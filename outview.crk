@@ -245,8 +245,9 @@ class OutputViewer : Column {
         # Ctrl-F brings up search.
         list.bind(6, Bound[List](this, startSearch));
 
-        # F3 - terminates.
+        # F3, 'q' - terminates.
         list.bind(KEY_F3, Bound[List](this, terminate));
+        list.bind(b'q', Bound[List](this, terminate));
 
         # Entryfield bindings.
 
