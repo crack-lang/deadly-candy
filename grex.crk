@@ -18,7 +18,7 @@
 import crack.functor Functor1;
 import crack.strutil StringArray;
 import crack.sys argv;
-import outview main, select, Cmd;
+import outview main, Cmd, Config, Selector;
 
 # Invoke the command.
 lines := StringArray();
@@ -27,4 +27,4 @@ cmd := Cmd!['grep'];
 cmd.extend(grepArgs);
 cmd.run(lines);
 
-main(lines, Functor1[void, String].Wrap(select));
+main(lines, Selector(Config.read('grex')));
