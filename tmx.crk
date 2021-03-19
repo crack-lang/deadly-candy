@@ -25,6 +25,7 @@ import crack.strutil split, StringArray;
 import crack.exp.termui TermApp;
 import .stdlist StandardList;
 import .termlist List;
+import .util KEY_F3;
 
 @import crack.ann cvars, impl;
 
@@ -78,6 +79,11 @@ bool selected(List list, Event event) {
     return true;
 }
 
+bool terminate(List list, Event event) {
+    list.getApp().terminate();
+    return true;
+}
+
 void runList(StringArray lines) {
     app := TermApp();
     app.start();
@@ -90,6 +96,7 @@ void runList(StringArray lines) {
     }
     list.selectedCallback = Select(list);
     list.bind(KEY_ENTER, Function2[bool, List, Event](selected));
+    list.bind(KEY_F3, Function2[bool, List, Event](terminate));
     app.run();
     app.showCursor(true);
     app.stop();
