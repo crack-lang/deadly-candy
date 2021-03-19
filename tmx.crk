@@ -58,17 +58,17 @@ int attachSession(String name) {
     cmd := StringArray!['tmux', 'attach-session', '-t', name];
     if (opts.getBool('detach'))
         cmd.append('-d');
-    return Process(cmd).run();
+    return Process(cmd, 0).run();
 }
 
 int newSession(String name) {
     RenameWindow rw = {name};
-    return Process(StringArray!['tmux', 'new-session', '-s', name]).run();
+    return Process(StringArray!['tmux', 'new-session', '-s', name], 0).run();
 }
 
 int detachSession(String name, String command) {
     StringArray cmd = ['tmux', 'new-session', '-ds', name, command];
-    return Process(cmd).run();
+    return Process(cmd, 0).run();
 }
 
 bool selected(List list, Event event) {
