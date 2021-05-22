@@ -123,7 +123,7 @@ void _recalculate(Array[_Cell] cells, int max) {
                 while (true) {
                     ++__focus;
                     if (__focus >= _cells.count()) {
-                        if (__captive) {
+                        if (__captive || !getParent()) {
                             __focus = 0;
                         } else {
                             --__focus;
