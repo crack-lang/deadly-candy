@@ -20,7 +20,7 @@
 import crack.cont.array Array;
 import crack.io cerr;
 import crack.lang InvalidArgumentError;
-import crack.exp.termui Event, KeyEvent, TermApp, Window;
+import crack.exp.termui Coord, Event, KeyEvent, TermApp, Window;
 
 const KEY_TAB := 9;
 
@@ -234,5 +234,79 @@ class Row : Container {
                 height
             );
         }
+    }
+}
+
+## A window that just holds another window.  This provides a means for easily
+## alternating between a set of views occupying the same region of the screen.
+##
+## Using it is very simple: create any number of child windows and set the
+## "parcel" field to the one that you want to be visible.
+import crack.io Formatter;
+class Frame : Window {
+
+    ## The window that is currently visible.  May be null, in which case the
+    ## contents of the frame is just black.
+    Window __parcel;
+
+    oper init(Window parent) : Window(parent) {}
+    oper init(TermApp app) : Window(app) {}
+
+    Window oper .parcel=(Window parcel) {
+        __parcel = parcel;
+        parcel.onResize(width, height);
+        return parcel;
+    }
+
+    Window oper .parcel() { return __parcel }
+
+    void onResize(uint width, uint height) {
+        Window.onResize(width, height);
+        if (__parcel)
+            __parcel.onResize(width, height);
+    }
+
+    void onMove(uint x, uint y) {
+        Window.onMove(x, y);
+        if (__parcel)
+            __parcel.onResize(width, height);
+    }
+
+    bool onEvent(Event event) {
+        if (__parcel)
+            return __parcel.onEvent(event);
+        return false;
+    }
+
+    Coord getMinSize() {
+        if (__parcel)
+            return __parcel.getMinSize();
+        else
+            return Coord(0, 0);
+    }
+
+    void setFocus(bool focus) {
+        if (__parcel)
+            __parcel.setFocus(focus);
+        else
+            Window.setFocus(focus);
+    }
+
+    bool canFocus() {
+        if (__parcel)
+            return __parcel.canFocus();
+        else
+            return false;
+    }
+
+    void paint() {
+        if (__parcel)
+            __parcel.paint();
+        else
+            getGraphicsContext().clear(0);
+    }
+
+    void formatTo(Formatter out) {
+        out `Frame($__parcel)`;
     }
 }
