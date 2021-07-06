@@ -19,6 +19,8 @@ import crack.io FStr;
 import crack.strutil StringArray;
 import crack.exp.termui Event, KeyEvent, TermApp, Window;
 
+import .util convertKey;
+
 class EventMonitor : Window {
 
     StringArray events = {};
@@ -27,10 +29,11 @@ class EventMonitor : Window {
 
     bool onEvent(Event event) {
         if (event := KeyEvent.cast(event, null)) {
-            if (event.key == b'q')
+            code := convertKey(event);
+            if (code == b'q')
                 getApp().terminate();
             else
-                events.append(FStr() I`key: $(event.key) text: \
+                events.append(FStr() I`key: $(code) text: \
                                        $(event.data.getRepr())`);
         }
         return true;

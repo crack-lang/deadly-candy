@@ -28,7 +28,11 @@ const int
     KEY_F9 = 270,
     KEY_F10 = 271,
     KEY_F11 = 272,
-    KEY_F12 = 273;
+    KEY_F12 = 273,
+    KEY_INS = 274,
+    KEY_DEL = 275,
+    KEY_HOME = 276,
+    KEY_END = 277;
 
 ## Convert a key event to one of the extended keycodes.
 ##
@@ -60,6 +64,14 @@ int convertKey(KeyEvent event) {
             return KEY_F11;
         else if (event.data == '\033[24~')
             return KEY_F12;
+        else if (event.data == '\033[3~')
+            return KEY_DEL;
+        else if (event.data == '\033[2~')
+            return KEY_INS;
+        else if (event.data == '\033[H')
+            return KEY_HOME;
+        else if (event.data == '\033[F')
+            return KEY_END;
     }
     return event.key;
 }
