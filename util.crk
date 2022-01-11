@@ -32,7 +32,9 @@ const int
     KEY_INS = 274,
     KEY_DEL = 275,
     KEY_HOME = 276,
-    KEY_END = 277;
+    KEY_END = 277,
+    KEY_TAB = 9,
+    KEY_BACKTAB = 278;
 
 ## Convert a key event to one of the extended keycodes.
 ##
@@ -72,6 +74,8 @@ int convertKey(KeyEvent event) {
             return KEY_HOME;
         else if (event.data == '\033[F')
             return KEY_END;
+        else if (event.data == '\033[Z')
+            return KEY_BACKTAB;
     }
     return event.key;
 }

@@ -22,7 +22,7 @@ import crack.io cerr;
 import crack.lang InvalidArgumentError;
 import crack.exp.termui Coord, Event, KeyEvent, TermApp, Window;
 
-const KEY_TAB := 9;
+import .util convertKey, KEY_BACKTAB, KEY_TAB;
 
 ## Used as 'size' for Container.addChild().  Indicates the child should expand
 ## to fill as much space as possible.
@@ -114,21 +114,35 @@ void _recalculate(Array[_Cell] cells, int max) {
 
     bool onEvent(Event event) {
         if (event := KeyEvent.cast(event, null)) {
+            k := convertKey(event);
 
-            # Handle a tab.
-            if (event.key == KEY_TAB) {
+            # Handle tab and backtab.
+            if (k == KEY_TAB) {
                 if (_cells) _cells[__focus].win.setFocus(false);
                 oldFocus := __focus;
 
                 while (true) {
                     ++__focus;
                     if (__focus >= _cells.count()) {
-                        if (__captive || !getParent()) {
-                            __focus = 0;
-                        } else {
-                            --__focus;
+                        __focus = 0;
+                        if (!__captive && getParent())
                             return getParent().onEvent(event);
-                        }
+                    }
+
+                    if (_cells[__focus].win.canFocus() || __focus == oldFocus)
+                        break;
+                }
+                _cells[__focus].win.setFocus(true);
+                return true;
+            } else if (k == KEY_BACKTAB) {
+                if (_cells) _cells[__focus].win.setFocus(false);
+                oldFocus := __focus;
+                while (true) {
+                    --__focus;
+                    if (__focus == -1) {
+                        __focus = 0;
+                        if (!__captive && getParent())
+                            return getParent().onEvent(event);
                     }
 
                     if (_cells[__focus].win.canFocus() || __focus == oldFocus)
