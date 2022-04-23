@@ -235,7 +235,7 @@ class Row : Container {
     oper init(TermApp app) : Container(app) {}
 
     void _recalculate() {
-        _recalculate(_cells, height);
+        _recalculate(_cells, width);
 
         # Reposition all of the windows.
         numCells := _cells.count();
