@@ -280,8 +280,29 @@ class OutputViewer : Column {
     }
 }
 
+## Return a fixed version of "line" that won't mess up the terminal.
+String fixLine(String line) {
+    buf := AppendBuffer(line.count());
+    for (int i = 0; i < line.count(); ++i) {
+        ch := line[i];
+        if (ch == b'\t') {
+            while ((bc := buf.count()) == 0 || bc % 8)
+                buf.append(b' ');
+        } else if (ch < 32 || ch > 127) {
+            buf.append(b'.');
+        } else {
+            buf.append(ch);
+        }
+    }
+    return String(buf, true);
+}
+
 ## Run with a bunch of lines and a selection function.
 int main(StringArray lines, Functor1[void, String] lineSelected) {
+
+    # Untabify all of the lines.
+    for (iter :on lines)
+        lines[iter.index] = fixLine(iter.elem());
 
     # Start the UI.
     app := TermApp();
