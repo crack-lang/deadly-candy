@@ -1,0 +1,40 @@
+import crack.exp.termui Event, KeyEvent, TermApp, Window;
+import .layout Row;
+import .util convertKey, KEY_F3;
+
+@import crack.ann cvars;
+
+class MyApp : TermApp {
+    void onEvent(Event event) {
+        if ((ke := KeyEvent.cast(event, null)) && convertKey(ke) == KEY_F3)
+            terminate();
+        else
+            TermApp.onEvent(event);
+    }
+}
+
+class MyBar : Window {
+
+    byte attr;
+
+    oper init(Window parent, byte attr) : Window(parent), attr = attr {}
+
+    void paint() {
+        gc := getGraphicsContext();
+        gc.fillRect(0, 0, width, height, attr, b' ');
+    }
+}
+
+app := MyApp();
+app.start();
+row := Row(app);
+
+for (byte attr = 0; attr < 0x80; attr += 0x10) {
+    bar := MyBar(row, attr);
+    row.addChild(bar, -1);
+}
+
+app.showCursor(false);
+app.run();
+app.showCursor(true);
+app.stop();
