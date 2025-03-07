@@ -23,12 +23,12 @@ import crack.exp.termui Event, KeyEvent, TermApp;
 import crack.ffmt.ini iniParser, IniMap;
 import crack.fs makePath, Path;
 import crack.functor Functor1, Functor2;
-import crack.io cout, cerr;
+import crack.io cout, cerr, FStr;
 import crack.lang AppendBuffer, Buffer;
 import crack.strutil StringArray;
 import crack.process Process, ProcessHandlerImpl, CRK_PIPE_STDERR,
     CRK_PIPE_STDOUT;
-import crack.sys argv, env;
+import crack.sys argv, env, exit;
 
 import entry Entry;
 import layout Column, EXPAND;
@@ -65,15 +65,15 @@ class Cmd : StringArray {
     }
 
     ## Run the command and append output to the list.
-    void run(Array[String] list) {
+    int run(Array[String] list) {
         proc := Process(this, CRK_PIPE_STDOUT | CRK_PIPE_STDERR);
-        proc.run(CmdProcHandler(list));
+        return proc.run(CmdProcHandler(list));
     }
 
     ## Run the command and discard output.
-    void run() {
+    int run() {
         proc := Process(this, CRK_PIPE_STDOUT | CRK_PIPE_STDERR);
-        proc.run(DevNullHandler());
+        return proc.run(DevNullHandler());
     }
 }
 
@@ -150,6 +150,7 @@ class OutputViewer : Column {
         list.setFocus(false);
         entry.setFocus(true);
         searchStart = list.selection;
+        entryBuf.size = 0;
         return true;
     }
 
@@ -280,6 +281,13 @@ class OutputViewer : Column {
     }
 }
 
+OutputViewer outputViewer;
+
+void showStatus(String status) {
+    outputViewer.entryBuf.size = 0;
+    outputViewer.entryBuf.extend(status);
+}
+
 ## Return a fixed version of "line" that won't mess up the terminal.
 String fixLine(String line) {
     buf := AppendBuffer(line.count());
@@ -308,7 +316,7 @@ int main(StringArray lines, Functor1[void, String] lineSelected) {
     app := TermApp();
     app.start();
     app.showCursor(false);
-    list := OutputViewer(app, lines, lineSelected);
+    outputViewer = list := OutputViewer(app, lines, lineSelected);
     app.run();
     app.showCursor(true);
     app.stop();
@@ -330,12 +338,70 @@ class Selector @impl Functor1[void, String] {
     }
 }
 
+## Select handler that calls a command whose argument is the selected line.
+class CommandSelectHandler @impl Functor1[void, String] {
+    @cvars {
+        Array[String] command;
+    }
+
+    void oper call(String line) {
+        cmd := Cmd(command);
+        cmd.append(line);
+        rc := cmd.run();
+        showStatus(FStr() `$cmd (rc = $rc)`);
+    }
+}
+
 if (@SCOPE_NAME == '.main') {
+    args := argv.subarray(1);
+
+    Functor1[void, String] selectHandler;
+
+    void needArgs(Array[String] args, String message) {
+        if (!args) {
+            cerr `$message\n`;
+            exit(1);
+        }
+    }
+
+    while (true) {
+        if (args[0] == '-s') {
+            args.delete(0);
+            needArgs(args, '-s requires a command');
+            command := StringArray();
+            if (args[0] == '[') {
+                args.delete(0);
+                needArgs(args,
+                         'A "-s [" option requires a "]" terminated command.');
+                while (args[0] != ']') {
+                    command.append(args[0]);
+                    args.delete(0);
+                }
+                args.delete(0);
+                needArgs(command,
+                         'A command specified in "[ ... ]" can not be empty.');
+            } else {
+                command.append(args[0]);
+                args.delete(0);
+            }
+            selectHandler = CommandSelectHandler(command);
+        } else if (args[0] == '--') {
+            args.delete(0);
+            break;
+        } else {
+            break;
+        }
+    }
+
+    if (!selectHandler) {
+        config := Config.read('outview');
+        selectHandler = Selector(config);
+    }
+
     # Invoke the command.
     lines := StringArray();
-    Cmd(argv.subarray(1)).run(lines);
+    Cmd(args).run(lines);
 
-    config := Config.read('outview');
-    main(lines, Selector(config));
+    main(lines, selectHandler);
 }
 
