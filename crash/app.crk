@@ -1,0 +1,114 @@
+## Application level crash bindings.
+
+import crack.cont.array Array;
+import crack.exp.termui TermApp;
+import crack.lang Exception, InvalidArgumentError;
+import crash.crash eval, parseBlockArg, Builtin, EvalContext, ObjOf, ParmInfo;
+import crash.types IntObj;
+import deadly.termevent EventMonitor;
+
+@import crack.ann cvars, SCOPE_NAME;
+@import crash.ann function;
+
+alias AppObj = ObjOf[TermApp];
+
+class AppRunCmd : Builtin {
+
+    @cvars {
+        TermApp __app;
+    }
+
+    String getDoc() {
+        return I"\
+            Run a block of code in a Deadly Candy event loop.
+
+            Before the block is run, the applications is \"started\" (meaning
+            that the terminal is cleared, put into \"raw\" mode, and the size is
+            obtained), and the cursor is made invisible..
+
+            After the block runs, the application's main loop is started and
+            run until termination, after which the cursor is made visible and
+            the original screen contents and terminal mode is restored.
+
+            Returns the result of the block.
+            ";
+    }
+
+    Object invoke(EvalContext context, Array[Object] args) {
+        if (args.count() != 1)
+            throw Exception('usage: run <block>');
+
+        block := parseBlockArg(args, 0);
+
+        __app.start();
+        __app.showCursor(false);
+
+        context.pushFuncFrame();
+        Object result;
+        try {
+            result = block.evaluate(context);
+        } catch (Exception ex) {
+            __app.showCursor(true);
+            __app.stop();
+            throw ex;
+        }
+        if (!context.yield) {
+            context.popFuncFrame();
+
+            # TODO: To deal with yield correctly, we need a "resume" list that
+            # executes arbitrary Crack code when the context is resumed.
+            __app.run();
+            __app.showCursor(true);
+            __app.stop();
+        }
+        return result;
+    }
+}
+
+
+## Set 'term' to null to use the current terminal (as defined by stdin).
+AppObj _makeTermApp(String term) {
+    self := term ? TermApp(term) : TermApp();
+    result := AppObj(self);
+
+    @function(TermApp) int terminate() {
+        self.terminate();
+        return 0;
+    }
+
+    result.define('run', AppRunCmd(self));
+    result.define('terminate', terminate(self));
+
+    return result;
+}
+
+## Create an App object for the current terminal.
+@function AppObj makeApp() {
+    return _makeTermApp(null);
+}
+
+## Create an App object for the specified terminal.
+@function AppObj makeAppForTerm(String term) {
+    return _makeTermApp(term);
+}
+
+void defineAll(EvalContext ctx) {
+    ctx.define('App', makeApp());
+    ctx.define('App_forTerm', makeAppForTerm());
+}
+
+if (@SCOPE_NAME == '.main') {
+    import crash.crash createRootContext;
+    import .evtmon defineEvtMon = defineAll;
+    ctx := createRootContext();
+    defineAll(ctx);
+    defineEvtMon(ctx);
+    eval(I'\
+        var app [App]
+        app run {
+            EventMonitor $app
+        }
+        ',
+        ctx,
+    );
+}

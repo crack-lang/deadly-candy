@@ -1,0 +1,27 @@
+## Event monitor widget.
+
+import crack.cont.array Array;
+import crack.exp.termui TermApp, Window;
+import crack.lang InvalidArgumentError;
+import crash.crash Builtin, EvalContext, ObjOf, ParmInfo;
+import crash.types IntObj;
+import deadly.termevent EventMonitor;
+
+@import crack.ann cvars, SCOPE_NAME;
+@import crash.ann function;
+
+## Create an EventMonitor widget.  'app' must be a TermApp or a Window.
+@function EventMonitor makeEventMonitor(Object parent) {
+    if (a := TermApp.cast(parent, null))
+        return EventMonitor(a);
+    else if (a := ObjOf[TermApp].cast(parent, null))
+        return EventMonitor(a.inst);
+    else if (w := Window.cast(parent, null))
+        return EventMonitor(w);
+    else
+        throw InvalidArgumentError('parent must be a TermApp or Window');
+}
+
+void defineAll(EvalContext ctx) {
+    ctx.define('EventMonitor', makeEventMonitor());
+}
