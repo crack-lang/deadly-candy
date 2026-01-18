@@ -18,6 +18,8 @@
 # limitations under the License.
 
 import crack.cont.array Array;
+import crack.cont.hashmap HashMap;
+import crack.functor Functor2;
 import crack.io cerr;
 import crack.lang InvalidArgumentError;
 import crack.exp.termui Coord, Event, KeyEvent, TermApp, Window;
@@ -89,6 +91,10 @@ void _recalculate(Array[_Cell] cells, int max) {
 
     bool __captive;
 
+    alias EventCallback = Functor2[bool, Container, Event];
+
+    HashMap[int, EventCallback] __bindings = {};
+
     byte backgroundAttr = 7;  # Default background attribute.
 
     oper init(Window parent) : Window(parent) {}
@@ -112,44 +118,71 @@ void _recalculate(Array[_Cell] cells, int max) {
         _recalculate();
     }
 
+    ## Shift focus to the next cell and return true.
+    ##
+    ## If the container is not in "captive" mode and we would otherwise roll
+    ## over to the first cell, this won't set the focus and it will
+    ## instead return false, indicating focus should be managed by the parent.
+    bool nextCell() {
+        if (_cells) _cells[__focus].win.setFocus(false);
+        oldFocus := __focus;
+
+        while (true) {
+            ++__focus;
+            if (__focus >= _cells.count()) {
+                __focus = 0;
+                if (!__captive && getParent())
+                    return false;
+            }
+
+            if (_cells[__focus].win.canFocus() || __focus == oldFocus)
+                break;
+        }
+        _cells[__focus].win.setFocus(true);
+        return true;
+    }
+
+    ## Shift focus to the previous cell and return true.
+    ##
+    ## If the container is not in "captive" mode and we would otherwise roll
+    ## over to the last cell, this won't set the focus and it will
+    ## instead return false, indicating focus should be managed by the parent.
+    bool prevCell() {
+        if (_cells) _cells[__focus].win.setFocus(false);
+        oldFocus := __focus;
+        while (true) {
+            --__focus;
+            if (__focus == -1) {
+                __focus = 0;
+                if (!__captive && getParent())
+                    return false;
+            }
+
+            if (_cells[__focus].win.canFocus() || __focus == oldFocus)
+                break;
+        }
+        _cells[__focus].win.setFocus(true);
+        return true;
+    }
+
     bool onEvent(Event event) {
         if (event := KeyEvent.cast(event, null)) {
+            if (handler := __bindings.get(convertKey(event)))
+                return handler(this, event);
+
             k := convertKey(event);
 
             # Handle tab and backtab.
             if (k == KEY_TAB) {
-                if (_cells) _cells[__focus].win.setFocus(false);
-                oldFocus := __focus;
-
-                while (true) {
-                    ++__focus;
-                    if (__focus >= _cells.count()) {
-                        __focus = 0;
-                        if (!__captive && getParent())
-                            return getParent().onEvent(event);
-                    }
-
-                    if (_cells[__focus].win.canFocus() || __focus == oldFocus)
-                        break;
-                }
-                _cells[__focus].win.setFocus(true);
-                return true;
+                if (nextCell())
+                    return true;
+                else
+                    return getParent().onEvent(event);
             } else if (k == KEY_BACKTAB) {
-                if (_cells) _cells[__focus].win.setFocus(false);
-                oldFocus := __focus;
-                while (true) {
-                    --__focus;
-                    if (__focus == -1) {
-                        __focus = 0;
-                        if (!__captive && getParent())
-                            return getParent().onEvent(event);
-                    }
-
-                    if (_cells[__focus].win.canFocus() || __focus == oldFocus)
-                        break;
-                }
-                _cells[__focus].win.setFocus(true);
-                return true;
+                if (prevCell())
+                    return true;
+                else
+                    return getParent().onEvent(event);
             }
         }
         return false;
@@ -203,6 +236,10 @@ void _recalculate(Array[_Cell] cells, int max) {
     ## The size change will not take effect until the next resize.
     void setCellSize(uint index, uint size) {
         _cells[index].size = size;
+    }
+
+    void bind(int key, EventCallback action) {
+        __bindings[key] = action;
     }
 }
 
